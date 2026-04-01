@@ -22,9 +22,6 @@ ScriptInclude({
     "Wrapper around the exifreader npm module for parsing image EXIF metadata from attachments.",
   accessibleFrom: "public",
   active: true,
-  // The script field is what ends up in the sys_script_include record.
-  // It must follow the classic ServiceNow ScriptInclude pattern (IIFE with Class.create).
-  // We use require() to load our bundled ES module at runtime on the instance.
   script: /* javascript */ `
 var ExifReaderUtils = Class.create();
 

@@ -39,27 +39,6 @@ export class ExifReaderUtils {
    * @param {string} base64String
    * @returns {Object}
    */
-  // parseFromBase64(base64String) {
-  //   try {
-  //     const bytes = base64ToUint8Array(base64String);
-  //     return this._parse(bytes);
-  //   } catch (e) {
-  //     return { _error: e.message };
-  //   }
-  // }
-
-  // /**
-  //  * Parse EXIF from a Uint8Array of raw bytes (if you already have them).
-  //  * @param {Uint8Array} bytes
-  //  * @returns {Object}
-  //  */
-  // parseFromBytes(bytes) {
-  //   try {
-  //     return this._parse(bytes);
-  //   } catch (e) {
-  //     return { _error: e.message };
-  //   }
-  // }
 
   getTag(tags, tagName) {
     return tags[tagName] || null;
@@ -107,18 +86,6 @@ export class ExifReaderUtils {
   _normalizeTags(rawTags) {
     return rawTags;
   }
-
-  // _normalizeTags(rawTags) {
-  //   const result = {};
-  //   for (const [key, tag] of Object.entries(rawTags)) {
-  //     if (tag && typeof tag === "object" && "description" in tag) {
-  //       result[key] = tag.description;
-  //     } else if (typeof tag !== "object") {
-  //       result[key] = tag;
-  //     }
-  //   }
-  //   return result;
-  // }
 }
 
 function uint8ArrayToBase64(bytes) {
