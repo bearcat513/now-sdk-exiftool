@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "exifreader": "^4.37.0",
+        "jimp": "^1.6.0",
         "jimp-compact": "^0.16.1-2"
     }
 }

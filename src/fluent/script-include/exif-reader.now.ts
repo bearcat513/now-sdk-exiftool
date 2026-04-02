@@ -30,6 +30,8 @@ ExifReaderUtils.prototype = {
     // Load the bundled server module via require()
     var mod = x_require('x_1741852_exifnow/now-sdk-exiftool/0.0.1/src/server/exif-reader.server.js');
     this._impl = new mod.ExifReaderUtils();
+    var mark = x_require('x_1741852_exifnow/now-sdk-exiftool/0.0.1/src/server/jimp.server.js');
+    this._mark = new mark.Watermark();
   },
 
   parseFromAttachment: function(attachmentSysId) {
@@ -61,6 +63,42 @@ ExifReaderUtils.prototype = {
         gs.error('ExifReaderUtils.parseFromBase64: ' + e.message, 'ExifReaderUtils');
         return {};
       }
+    },
+
+    addWatermark: function(attachmentSysId){
+      var attachUtil = new GlideSysAttachment();
+      var attributes = this.getAttributes(attachmentSysId);
+      var gps = attributes?.["gps_latitude"] + ", " + attributes?.["gps_longitude"];
+      var watermark = this._mark({
+        text: gps,
+        fontSize: 32,
+        padding: 16,
+      });
+        var grAtt = new GlideRecord('sys_attachment');
+        if (!grAtt.get(attachmentSysId)) {
+          gs.warn('ExifReaderUtils: attachment not found: ' + attachmentSysId, 'ExifReaderUtils');
+          return {};
+        }
+      var base64 = attachUtil.getContentBase64(grAtt);
+      var output = await watermark.apply(base64);
+      var rec = new GlideRecord('sys_user');
+var incidentSysID = '6816f79cc0a8016401c5a33be04be441';
+rec.get(incidentSysID);
+var fileName = 'example.jpeg';
+var contentType = 'image/jpeg';
+var newAttach = attachUtil.writeBase64(rec, fileName, contentType, output);
+    },
+
+    getAttributes: function(attachmentSysId){
+      var attributes = {};
+      var util = new GlideSysAttachment();
+      var attrGR = util.fetachAllAttributes(attachmentSysId);
+      while(attGR.next()){
+        var key = attrGR.getValue("key").toLowerCase();
+        var val = attrGR.getValue("value");
+        attributes[key] = val;
+      }
+      return attributes;
     },
 
     getTag: function(attachmentSysId, tagName) {
