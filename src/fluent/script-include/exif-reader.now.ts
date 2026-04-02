@@ -30,8 +30,21 @@ ExifReaderUtils.prototype = {
     // Load the bundled server module via require()
     var mod = x_require('x_1741852_exifnow/now-sdk-exiftool/0.0.1/src/server/exif-reader.server.js');
     this._impl = new mod.ExifReaderUtils();
-    var mark = x_require('x_1741852_exifnow/now-sdk-exiftool/0.0.1/src/server/jimp.server.js');
-    this._mark = new mark.Watermark();
+    // Don't load Jimp immediately - wait until watermark is needed
+    this._mark = null;
+  },
+
+  _getWatermarker: function() {
+    if (!this._mark) {
+      try {
+        var mark = x_require('x_1741852_exifnow/now-sdk-exiftool/0.0.1/src/server/jimp.server.js');
+        this._mark = new mark.default();
+      } catch (e) {
+        gs.error('ExifReaderUtils: Failed to load watermark module: ' + e.message, 'ExifReaderUtils');
+        return null;
+      }
+    }
+    return this._mark;
   },
 
   parseFromAttachment: function(attachmentSysId) {
@@ -65,35 +78,89 @@ ExifReaderUtils.prototype = {
       }
     },
 
-    addWatermark: function(attachmentSysId){
-      var attachUtil = new GlideSysAttachment();
-      var attributes = this.getAttributes(attachmentSysId);
-      var gps = attributes?.["gps_latitude"] + ", " + attributes?.["gps_longitude"];
-      var watermark = this._mark({
-        text: gps,
-        fontSize: 32,
-        padding: 16,
-      });
+    addWatermark: function(attachmentSysId, targetTable, targetRecord){
+      var watermarker = this._getWatermarker();
+      if (!watermarker) {
+        gs.error('ExifReaderUtils: Watermark functionality not available', 'ExifReaderUtils');
+        return false;
+      }
+
+      try {
         var grAtt = new GlideRecord('sys_attachment');
         if (!grAtt.get(attachmentSysId)) {
           gs.warn('ExifReaderUtils: attachment not found: ' + attachmentSysId, 'ExifReaderUtils');
-          return {};
+          return false;
         }
-      var base64 = attachUtil.getContentBase64(grAtt);
-      var output = await watermark.apply(base64);
-      var rec = new GlideRecord('sys_user');
-var incidentSysID = '6816f79cc0a8016401c5a33be04be441';
-rec.get(incidentSysID);
-var fileName = 'example.jpeg';
-var contentType = 'image/jpeg';
-var newAttach = attachUtil.writeBase64(rec, fileName, contentType, output);
+
+        // Get GPS coordinates from EXIF data
+        var exifData = this.parseFromAttachment(attachmentSysId);
+        var gpsText = '';
+
+        if (exifData.gps && exifData.gps.Latitude && exifData.gps.Longitude) {
+          gpsText = 'GPS: ' + exifData.gps.Latitude + ', ' + exifData.gps.Longitude;
+        } else {
+          gs.warn('ExifReaderUtils: No GPS data found in attachment', 'ExifReaderUtils');
+          gpsText = 'No GPS data available';
+        }
+
+        var attachUtil = new GlideSysAttachment();
+        var base64 = attachUtil.getContentBase64(grAtt);
+
+        if (!base64) {
+          gs.warn('ExifReaderUtils: No image data found', 'ExifReaderUtils');
+          return false;
+        }
+
+        // Set watermark properties
+        watermarker.text = gpsText;
+        watermarker.fontSize = 32;
+        watermarker.padding = 16;
+        watermarker.fontColor = 'white';
+
+        // Try Java-based watermarking first
+        var watermarkedBase64;
+        try {
+          watermarkedBase64 = watermarker.apply(base64.toString());
+        } catch (e) {
+          gs.warn('ExifReaderUtils: Java watermarking failed: ' + e.message, 'ExifReaderUtils');
+          watermarkedBase64 = null;
+        }
+
+        if (watermarkedBase64 && watermarkedBase64 !== base64.toString()) {
+          // Create new attachment with watermarked image
+          var fileName = 'watermarked_' + (grAtt.getValue('file_name') || 'image.png');
+          var contentType = grAtt.getValue('content_type') || 'image/png';
+
+          // Use provided target or default to sys_user table
+          var targetTableName = targetTable || 'sys_user';
+          var targetRecordId = targetRecord || '6816f79cc0a8016401c5a33be04be441'; // fallback record
+
+          var targetGR = new GlideRecord(targetTableName);
+          if (targetGR.get(targetRecordId)) {
+            var newAttachSysId = attachUtil.writeBase64(targetGR, fileName, contentType, watermarkedBase64);
+            gs.info('ExifReaderUtils: Java watermarked image created: ' + newAttachSysId + ' with GPS: ' + gpsText, 'ExifReaderUtils');
+            return newAttachSysId;
+          } else {
+            gs.warn('ExifReaderUtils: Target record not found: ' + targetRecordId, 'ExifReaderUtils');
+            // Fall through to metadata approach
+          }
+        }
+
+        // Fallback: Log GPS watermark information if visual watermarking failed
+        watermarker.logWatermark(attachmentSysId, gs);
+        gs.info('ExifReaderUtils: GPS metadata logged for attachment ' + attachmentSysId + ': ' + gpsText, 'ExifReaderUtils');
+        return attachmentSysId; // Return original attachment ID
+      } catch (e) {
+        gs.error('ExifReaderUtils.addWatermark: ' + e.message, 'ExifReaderUtils');
+        return false;
+      }
     },
 
     getAttributes: function(attachmentSysId){
       var attributes = {};
       var util = new GlideSysAttachment();
-      var attrGR = util.fetachAllAttributes(attachmentSysId);
-      while(attGR.next()){
+      var attrGR = util.fetchAllAttributes(attachmentSysId);
+      while(attrGR.next()){
         var key = attrGR.getValue("key").toLowerCase();
         var val = attrGR.getValue("value");
         attributes[key] = val;

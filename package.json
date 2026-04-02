@@ -19,8 +19,6 @@
         "@servicenow/eslint-plugin-sdk-app-plugin": "4.4.0"
     },
     "dependencies": {
-        "exifreader": "^4.37.0",
-        "jimp": "^1.6.0",
-        "jimp-compact": "^0.16.1-2"
+        "exifreader": "^4.37.0"
     }
 }
